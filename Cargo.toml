@@ -1,0 +1,22 @@
+[package]
+name = "naive_strategy"
+version = "0.1.0"
+authors = ["RollenRegistratorBot <rollenseb@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+alpaca = {version = "0.1", path = "../alpaca"}
+data-relay = {version = "0.1", path = "../data-relay"}
+rdkafka = "0.23.1"
+chrono = "0.4.0"
+clap = "2.33.1"
+env_logger = "0.7.1"
+futures = "0.3.0"
+log = "0.4.8"
+tokio = { version = "0.2", features = ["blocking", "macros", "rt-threaded", "time"] }
+rand = "0.7.3"
+serde_json = "1.0.55"
+uuid = "0.8.1"
+trader = {version = "0.1", path = "../trader" }
