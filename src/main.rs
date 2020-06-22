@@ -20,16 +20,14 @@ fn evaluate_quote<'a>(msg: OwnedMessage) -> Option<OrderIntent> {
         Some(Ok(payload)) => {
             println!("{:?}", &payload);
             let agg: PolygonMessage = serde_json::from_str(payload).ok()?;
-            if let PolygonMessage::MinuteAggregate { sym, vw, c, .. } = agg {
-                let direction = if c > vw { Side::Buy } else { Side::Sell };
+            if let PolygonMessage::MinuteAggregate { symbol, vwap, close, .. } = agg {
+                let direction = if close > vwap { Side::Buy } else { Side::Sell };
                 let order_intent = OrderIntent {
                     id: Uuid::new_v4(),
-                    symbol: sym,
+                    symbol: symbol,
                     qty: 1,
                     order_type: OrderType::Market,
                     side: direction,
-                    limit_price: None,
-                    stop_price: None,
                     time_in_force: TimeInForce::GTC,
                     extended_hours: false,
                 };
@@ -149,10 +147,10 @@ async fn main() {
         .get_matches();
 
     let brokers = matches.value_of("brokers").expect("Has default value so unwrap is always safe");
-    let group_id = matches.value_of("group-id").unwrap("Has default value so unwrap is always safe");
-    let input_topic = matches.value_of("input-topic").unwrap("Required value so unwrap is always safe");
-    let output_topic = matches.value_of("output-topic").unwrap("Required value so unwrap is always safe");
-    let num_workers = value_t!(matches, "num-workers", usize).unwrap("Has default value so unwrap is always safe");
+    let group_id = matches.value_of("group-id").expect("Has default value so unwrap is always safe");
+    let input_topic = matches.value_of("input-topic").expect("Required value so unwrap is always safe");
+    let output_topic = matches.value_of("output-topic").expect("Required value so unwrap is always safe");
+    let num_workers = value_t!(matches, "num-workers", usize).expect("Has default value so unwrap is always safe");
 
     (0..num_workers)
         .map(|_| {
