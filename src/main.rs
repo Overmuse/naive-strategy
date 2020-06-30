@@ -1,7 +1,7 @@
-use alpaca::orders::{OrderType, TimeInForce};
+use alpaca::orders::OrderIntent;
 use alpaca::Side;
 use clap::{value_t, App, Arg};
-use data_relay::polygon::PolygonMessage;
+use polygon_data_relay::PolygonMessage;
 use futures::stream::FuturesUnordered;
 use futures::{StreamExt, TryStreamExt};
 use log::info;
@@ -12,24 +12,19 @@ use rdkafka::message::OwnedMessage;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::Message;
 use serde_json;
-use trader::OrderIntent;
-use uuid::Uuid;
 
 fn evaluate_quote<'a>(msg: OwnedMessage) -> Option<OrderIntent> {
     match msg.payload_view::<str>() {
         Some(Ok(payload)) => {
-            println!("{:?}", &payload);
             let agg: PolygonMessage = serde_json::from_str(payload).ok()?;
+            println!("{:?}", &agg);
             if let PolygonMessage::MinuteAggregate { symbol, vwap, close, .. } = agg {
                 let direction = if close > vwap { Side::Buy } else { Side::Sell };
                 let order_intent = OrderIntent {
-                    id: Uuid::new_v4(),
                     symbol: symbol,
                     qty: 1,
-                    order_type: OrderType::Market,
                     side: direction,
-                    time_in_force: TimeInForce::GTC,
-                    extended_hours: false,
+                    ..Default::default()
                 };
                 Some(order_intent)
             } else {
