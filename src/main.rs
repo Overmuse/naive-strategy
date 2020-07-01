@@ -1,13 +1,11 @@
-use alpaca::orders::OrderIntent;
-use alpaca::Side;
+use alpaca::{orders::OrderIntent, Side};
 use clap::{value_t, App, Arg};
-use polygon_data_relay::PolygonMessage;
 use futures::stream::FuturesUnordered;
 use futures::{StreamExt, TryStreamExt};
 use log::info;
+use polygon_data_relay::PolygonMessage;
 use rdkafka::config::ClientConfig;
-use rdkafka::consumer::stream_consumer::StreamConsumer;
-use rdkafka::consumer::Consumer;
+use rdkafka::consumer::{stream_consumer::StreamConsumer, Consumer};
 use rdkafka::message::OwnedMessage;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::Message;
@@ -18,7 +16,13 @@ fn evaluate_quote<'a>(msg: OwnedMessage) -> Option<OrderIntent> {
         Some(Ok(payload)) => {
             let agg: PolygonMessage = serde_json::from_str(payload).ok()?;
             println!("{:?}", &agg);
-            if let PolygonMessage::MinuteAggregate { symbol, vwap, close, .. } = agg {
+            if let PolygonMessage::MinuteAggregate {
+                symbol,
+                vwap,
+                close,
+                ..
+            } = agg
+            {
                 let direction = if close > vwap { Side::Buy } else { Side::Sell };
                 let order_intent = OrderIntent {
                     symbol: symbol,
@@ -35,14 +39,6 @@ fn evaluate_quote<'a>(msg: OwnedMessage) -> Option<OrderIntent> {
     }
 }
 
-// Creates all the resources and runs the event loop. The event loop will:
-//   1) receive a stream of messages from the `StreamConsumer`.
-//   2) filter out eventual Kafka errors.
-//   3) send the message to a thread pool for processing.
-//   4) produce the result to the output topic.
-// `tokio::spawn` is used to handle IO-bound tasks in parallel (e.g., producing
-// the messages), while `tokio::task::spawn_blocking` is used to handle the
-// simulated CPU-bound task.
 async fn run_async_processor(
     brokers: String,
     group_id: String,
@@ -141,11 +137,20 @@ async fn main() {
         )
         .get_matches();
 
-    let brokers = matches.value_of("brokers").expect("Has default value so unwrap is always safe");
-    let group_id = matches.value_of("group-id").expect("Has default value so unwrap is always safe");
-    let input_topic = matches.value_of("input-topic").expect("Required value so unwrap is always safe");
-    let output_topic = matches.value_of("output-topic").expect("Required value so unwrap is always safe");
-    let num_workers = value_t!(matches, "num-workers", usize).expect("Has default value so unwrap is always safe");
+    let brokers = matches
+        .value_of("brokers")
+        .expect("Has default value so unwrap is always safe");
+    let group_id = matches
+        .value_of("group-id")
+        .expect("Has default value so unwrap is always safe");
+    let input_topic = matches
+        .value_of("input-topic")
+        .expect("Required value so unwrap is always safe");
+    let output_topic = matches
+        .value_of("output-topic")
+        .expect("Required value so unwrap is always safe");
+    let num_workers = value_t!(matches, "num-workers", usize)
+        .expect("Has default value so unwrap is always safe");
 
     (0..num_workers)
         .map(|_| {

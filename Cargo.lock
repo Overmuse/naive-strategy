@@ -27,6 +27,21 @@ dependencies = [
 [[package]]
 name = "alpaca"
 version = "0.1.0"
+source = "git+https://github.com/AiaiaCapital/alpaca#4d20992bd98decd4fc52f1010d3ea7827e678520"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "log 0.4.8",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "alpaca"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -877,7 +892,7 @@ dependencies = [
 name = "naive_strategy"
 version = "0.1.0"
 dependencies = [
- "alpaca",
+ "alpaca 0.1.0",
  "chrono",
  "clap",
  "env_logger",
@@ -1973,7 +1988,7 @@ checksum = "e987b6bf443f4b5b3b6f38704195592cca41c5bb7aedd3c3693c7081f8289860"
 name = "trader"
 version = "0.1.0"
 dependencies = [
- "alpaca",
+ "alpaca 0.1.0 (git+https://github.com/AiaiaCapital/alpaca)",
  "anyhow",
  "clap",
  "futures 0.3.5",
