@@ -40,20 +40,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "alpaca"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "log 0.4.8",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
- "uuid",
-]
-
-[[package]]
 name = "ansi_term"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -254,6 +240,7 @@ dependencies = [
 [[package]]
 name = "data-relay"
 version = "0.1.0"
+source = "git+https://github.com/AiaiaCapital/data-relay#cccd4903a05659b3ab8abe2110d10df285ef59ef"
 dependencies = [
  "anyhow",
  "clap",
@@ -892,7 +879,7 @@ dependencies = [
 name = "naive_strategy"
 version = "0.1.0"
 dependencies = [
- "alpaca 0.1.0",
+ "alpaca",
  "chrono",
  "clap",
  "env_logger",
@@ -903,7 +890,6 @@ dependencies = [
  "rdkafka",
  "serde_json",
  "tokio",
- "trader",
  "uuid",
 ]
 
@@ -1111,6 +1097,7 @@ checksum = "05da548ad6865900e60eaba7f589cc0783590a92e940c26953ff81ddbab2d677"
 [[package]]
 name = "polygon-data-relay"
 version = "0.1.0"
+source = "git+https://github.com/AiaiaCapital/data-relay#cccd4903a05659b3ab8abe2110d10df285ef59ef"
 dependencies = [
  "anyhow",
  "clap",
@@ -1983,21 +1970,6 @@ name = "tower-service"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e987b6bf443f4b5b3b6f38704195592cca41c5bb7aedd3c3693c7081f8289860"
-
-[[package]]
-name = "trader"
-version = "0.1.0"
-dependencies = [
- "alpaca 0.1.0 (git+https://github.com/AiaiaCapital/alpaca)",
- "anyhow",
- "clap",
- "futures 0.3.5",
- "rdkafka",
- "serde",
- "serde_json",
- "tokio",
- "uuid",
-]
 
 [[package]]
 name = "traitobject"

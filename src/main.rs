@@ -24,9 +24,10 @@ fn evaluate_quote<'a>(msg: OwnedMessage) -> Option<OrderIntent> {
             } = agg
             {
                 let direction = if close > vwap { Side::Buy } else { Side::Sell };
+                let shares = f64::trunc(1000.0 / close) as u32;
                 let order_intent = OrderIntent {
                     symbol: symbol,
-                    qty: 1,
+                    qty: shares,
                     side: direction,
                     ..Default::default()
                 };
