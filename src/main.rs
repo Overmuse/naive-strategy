@@ -10,27 +10,24 @@ use rdkafka::message::OwnedMessage;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::Message;
 use serde_json;
+use std::collections::HashMap;
 
 fn evaluate_quote<'a>(msg: OwnedMessage) -> Option<OrderIntent> {
     match msg.payload_view::<str>() {
         Some(Ok(payload)) => {
             let agg: PolygonMessage = serde_json::from_str(payload).ok()?;
-            println!("{:?}", &agg);
+            info!("{:#?}", &agg);
             if let PolygonMessage::MinuteAggregate {
                 symbol,
                 vwap,
                 close,
                 ..
-            } = agg
-            {
+            } = agg {
                 let direction = if close > vwap { Side::Buy } else { Side::Sell };
-                let shares = f64::trunc(1000.0 / close) as u32;
-                let order_intent = OrderIntent {
-                    symbol: symbol,
-                    qty: shares,
-                    side: direction,
-                    ..Default::default()
-                };
+                let shares = f64::trunc(10000.0 / close) as u32;
+                let order_intent = OrderIntent::new(&symbol)
+                    .qty(shares)
+                    .side(direction);
                 Some(order_intent)
             } else {
                 None
@@ -40,10 +37,14 @@ fn evaluate_quote<'a>(msg: OwnedMessage) -> Option<OrderIntent> {
     }
 }
 
+fn update_positions(positions: &HashMap<String, i32>, msg: OwnedMessage) {
+    todo!()
+}
+
 async fn run_async_processor(
     brokers: String,
     group_id: String,
-    input_topic: String,
+    input_topics: Vec<String>,
     output_topic: String,
 ) {
     let consumer: StreamConsumer = ClientConfig::new()
@@ -55,9 +56,13 @@ async fn run_async_processor(
         .create()
         .expect("Consumer creation failed");
 
+    let input: Vec<&str> = input_topics
+        .iter()
+        .map(|x| {x.as_str()})
+        .collect();
     consumer
-        .subscribe(&[&input_topic])
-        .expect("Can't subscribe to specified topic");
+        .subscribe(&input)
+        .expect("Can't subscribe to specified topics");
 
     let producer: FutureProducer = ClientConfig::new()
         .set("bootstrap.servers", &brokers)
@@ -65,26 +70,35 @@ async fn run_async_processor(
         .create()
         .expect("Producer creation error");
 
+    //let mut positions = HashMap::new();
+
     let stream_processor = consumer.start().try_for_each(|borrowed_message| {
         let producer = producer.clone();
         let output_topic = output_topic.to_string();
         async move {
             let owned_message = borrowed_message.detach();
             tokio::spawn(async move {
-                let order_intent = evaluate_quote(owned_message);
-                if let Some(oi) = order_intent {
-                    let produce_future = producer.send(
-                        FutureRecord::to(&output_topic).key(&oi.symbol).payload(
-                            &serde_json::to_string(&oi).expect("Failed to serialize order intent"),
-                        ),
-                        0,
-                    );
-                    match produce_future.await {
-                        Ok(delivery) => println!("Sent: {:?}", delivery),
-                        _ => println!("Error"),
-                    }
-                }
-            });
+                match owned_message.topic() {
+                    "aiaia-trades" => {
+                        let order_intent = evaluate_quote(owned_message);
+                        if let Some(oi) = order_intent {
+                            let produce_future = producer.send(
+                                FutureRecord::to(&output_topic).key(&oi.symbol).payload(
+                                    &serde_json::to_string(&oi).expect("Failed to serialize order intent"),
+                                ),
+                                0,
+                            );
+                            match produce_future.await {
+                                Ok(_delivery) => info!("Sent: {:#?}", &oi),
+                                _ => info!("Error"),
+                            }
+                        }
+                    },
+                    "positions" => {
+                        () //update_positions(&positions, owned_message);
+                    },
+                    _ => () 
+            }});
             Ok(())
         }
     });
@@ -96,6 +110,7 @@ async fn run_async_processor(
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
     let matches = App::new("Async example")
         .version(option_env!("CARGO_PKG_VERSION").unwrap_or(""))
         .about("Asynchronous computation example")
@@ -113,14 +128,14 @@ async fn main() {
                 .long("group-id")
                 .help("Consumer group id")
                 .takes_value(true)
-                .default_value("example_consumer_group_id"),
+                .default_value("naive_strategy"),
         )
         .arg(
-            Arg::with_name("input-topic")
-                .long("input-topic")
-                .help("Input topic")
-                .takes_value(true)
-                .required(true),
+            Arg::with_name("input-topics")
+                .long("input-topics")
+                .help("Input topics")
+                .required(true)
+                .min_values(1)
         )
         .arg(
             Arg::with_name("output-topic")
@@ -144,9 +159,11 @@ async fn main() {
     let group_id = matches
         .value_of("group-id")
         .expect("Has default value so unwrap is always safe");
-    let input_topic = matches
-        .value_of("input-topic")
-        .expect("Required value so unwrap is always safe");
+    let input_topics: Vec<String> = matches
+        .values_of("input-topics")
+        .expect("Required value so unwrap is always safe")
+        .map(|x| {x.to_string()})
+        .collect();
     let output_topic = matches
         .value_of("output-topic")
         .expect("Required value so unwrap is always safe");
@@ -158,7 +175,7 @@ async fn main() {
             tokio::spawn(run_async_processor(
                 brokers.to_owned(),
                 group_id.to_owned(),
-                input_topic.to_owned(),
+                input_topics.to_owned(),
                 output_topic.to_owned(),
             ))
         })
