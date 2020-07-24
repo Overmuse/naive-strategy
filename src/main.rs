@@ -79,7 +79,7 @@ async fn run_async_processor(
             let owned_message = borrowed_message.detach();
             tokio::spawn(async move {
                 match owned_message.topic() {
-                    "aiaia-trades" => {
+                    "minute-aggregates" => {
                         let order_intent = evaluate_quote(owned_message);
                         if let Some(oi) = order_intent {
                             let produce_future = producer.send(
