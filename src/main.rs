@@ -1,4 +1,5 @@
 use alpaca::{orders::OrderIntent, Side};
+use chrono::{Local, NaiveTime};
 use clap::{value_t, App, Arg};
 use futures::stream::FuturesUnordered;
 use futures::{StreamExt, TryStreamExt};
@@ -11,6 +12,7 @@ use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::Message;
 use serde_json;
 use std::collections::HashMap;
+use std::convert::TryInto;
 
 fn evaluate_quote<'a>(msg: OwnedMessage) -> Option<OrderIntent> {
     match msg.payload_view::<str>() {
@@ -47,6 +49,13 @@ async fn run_async_processor(
     input_topics: Vec<String>,
     output_topic: String,
 ) {
+    let local_time = Local::now();
+    let market_open = NaiveTime::from_hms(09, 30, 0);
+    if local_time.time() < market_open {
+        let duration = market_open - local_time.time();
+        info!("Market closed. Sleeping for {:?} seconds", duration);
+        std::thread::sleep(std::time::Duration::from_secs(duration.num_seconds().try_into().unwrap()));
+    }
     let consumer: StreamConsumer = ClientConfig::new()
         .set("group.id", &group_id)
         .set("bootstrap.servers", &brokers)
