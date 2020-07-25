@@ -153,13 +153,6 @@ async fn main() {
                 .takes_value(true)
                 .required(true),
         )
-        .arg(
-            Arg::with_name("num-workers")
-                .long("num-workers")
-                .help("Number of workers")
-                .takes_value(true)
-                .default_value("1"),
-        )
         .get_matches();
 
     let brokers = matches
@@ -176,19 +169,11 @@ async fn main() {
     let output_topic = matches
         .value_of("output-topic")
         .expect("Required value so unwrap is always safe");
-    let num_workers = value_t!(matches, "num-workers", usize)
-        .expect("Has default value so unwrap is always safe");
 
-    (0..num_workers)
-        .map(|_| {
-            tokio::spawn(run_async_processor(
+    run_async_processor(
                 brokers.to_owned(),
                 group_id.to_owned(),
                 input_topics.to_owned(),
                 output_topic.to_owned(),
-            ))
-        })
-        .collect::<FuturesUnordered<_>>()
-        .for_each(|_| async { () })
-        .await
+            ).await
 }
