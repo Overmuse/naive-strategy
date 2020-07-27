@@ -1,8 +1,7 @@
 use alpaca::{orders::OrderIntent, Side};
 use chrono::{Local, NaiveTime};
-use clap::{value_t, App, Arg};
-use futures::stream::FuturesUnordered;
-use futures::{StreamExt, TryStreamExt};
+use clap::{App, Arg};
+use futures::{future, StreamExt};
 use log::info;
 use polygon_data_relay::PolygonMessage;
 use rdkafka::config::ClientConfig;
@@ -24,12 +23,11 @@ fn evaluate_quote<'a>(msg: OwnedMessage) -> Option<OrderIntent> {
                 vwap,
                 close,
                 ..
-            } = agg {
+            } = agg
+            {
                 let direction = if close > vwap { Side::Buy } else { Side::Sell };
                 let shares = f64::trunc(10000.0 / close) as u32;
-                let order_intent = OrderIntent::new(&symbol)
-                    .qty(shares)
-                    .side(direction);
+                let order_intent = OrderIntent::new(&symbol).qty(shares).side(direction);
                 Some(order_intent)
             } else {
                 None
@@ -54,7 +52,10 @@ async fn run_async_processor(
     if local_time.time() < market_open {
         let duration = market_open - local_time.time();
         info!("Market closed. Sleeping for {:?} seconds", duration);
-        std::thread::sleep(std::time::Duration::from_secs(duration.num_seconds().try_into().unwrap()));
+        tokio::time::delay_for(std::time::Duration::from_secs(
+            duration.num_seconds().try_into().unwrap(),
+        ))
+        .await;
     }
     let consumer: StreamConsumer = ClientConfig::new()
         .set("group.id", &group_id)
@@ -65,10 +66,7 @@ async fn run_async_processor(
         .create()
         .expect("Consumer creation failed");
 
-    let input: Vec<&str> = input_topics
-        .iter()
-        .map(|x| {x.as_str()})
-        .collect();
+    let input: Vec<&str> = input_topics.iter().map(|x| x.as_str()).collect();
     consumer
         .subscribe(&input)
         .expect("Can't subscribe to specified topics");
@@ -81,11 +79,12 @@ async fn run_async_processor(
 
     //let mut positions = HashMap::new();
 
-    let stream_processor = consumer.start().try_for_each(|borrowed_message| {
-        let producer = producer.clone();
-        let output_topic = output_topic.to_string();
-        async move {
-            let owned_message = borrowed_message.detach();
+    consumer
+        .start()
+        .for_each(|borrowed_message| {
+            let producer = producer.clone();
+            let output_topic = output_topic.to_string();
+            let owned_message = borrowed_message.unwrap().detach();
             tokio::spawn(async move {
                 match owned_message.topic() {
                     "minute-aggregates" => {
@@ -93,7 +92,8 @@ async fn run_async_processor(
                         if let Some(oi) = order_intent {
                             let produce_future = producer.send(
                                 FutureRecord::to(&output_topic).key(&oi.symbol).payload(
-                                    &serde_json::to_string(&oi).expect("Failed to serialize order intent"),
+                                    &serde_json::to_string(&oi)
+                                        .expect("Failed to serialize order intent"),
                                 ),
                                 0,
                             );
@@ -101,20 +101,33 @@ async fn run_async_processor(
                                 Ok(_delivery) => info!("Sent: {:#?}", &oi),
                                 _ => info!("Error"),
                             }
+                            let mut oi2 = oi.clone();
+                            tokio::spawn(async move {
+                                tokio::time::delay_for(std::time::Duration::from_secs(30)).await;
+                                oi2.side = match oi.side {
+                                    Side::Buy => Side::Sell,
+                                    Side::Sell => Side::Buy,
+                                    _ => Side::Buy,
+                                };
+                                producer.send(
+                                    FutureRecord::to(&output_topic).key(&oi2.symbol).payload(
+                                        &serde_json::to_string(&oi2)
+                                            .expect("failed to serialize order intent"),
+                                    ),
+                                    0,
+                                )
+                            });
                         }
-                    },
+                    }
                     "positions" => {
                         () //update_positions(&positions, owned_message);
-                    },
-                    _ => () 
-            }});
-            Ok(())
-        }
-    });
-
-    info!("Starting event loop");
-    stream_processor.await.expect("stream processing failed");
-    info!("Stream processing terminated");
+                    }
+                    _ => (),
+                }
+            });
+            future::ready(())
+        })
+        .await;
 }
 
 #[tokio::main]
@@ -144,7 +157,7 @@ async fn main() {
                 .long("input-topics")
                 .help("Input topics")
                 .required(true)
-                .min_values(1)
+                .min_values(1),
         )
         .arg(
             Arg::with_name("output-topic")
@@ -164,16 +177,17 @@ async fn main() {
     let input_topics: Vec<String> = matches
         .values_of("input-topics")
         .expect("Required value so unwrap is always safe")
-        .map(|x| {x.to_string()})
+        .map(|x| x.to_string())
         .collect();
     let output_topic = matches
         .value_of("output-topic")
         .expect("Required value so unwrap is always safe");
 
     run_async_processor(
-                brokers.to_owned(),
-                group_id.to_owned(),
-                input_topics.to_owned(),
-                output_topic.to_owned(),
-            ).await
+        brokers.to_owned(),
+        group_id.to_owned(),
+        input_topics.to_owned(),
+        output_topic.to_owned(),
+    )
+    .await
 }
