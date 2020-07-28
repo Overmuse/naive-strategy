@@ -85,7 +85,7 @@ async fn run_async_processor(
             let producer = producer.clone();
             let output_topic = output_topic.to_string();
             let owned_message = borrowed_message.unwrap().detach();
-            tokio::spawn(async move {
+            tokio::spawn(async {
                 match owned_message.topic() {
                     "minute-aggregates" => {
                         let order_intent = evaluate_quote(owned_message);
@@ -126,13 +126,12 @@ async fn run_async_processor(
                 }
             });
             future::ready(())
-        })
-        .await;
+        }).await
 }
 
 #[tokio::main]
 async fn main() {
-    env_logger::init();
+    env_logger::builder().format_timestamp_micros().init();
     let matches = App::new("Async example")
         .version(option_env!("CARGO_PKG_VERSION").unwrap_or(""))
         .about("Asynchronous computation example")
