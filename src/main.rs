@@ -43,17 +43,14 @@ fn update_positions(positions: &HashMap<String, i32>, msg: OwnedMessage) {
 }
 
 async fn run_async_processor(
+    client: AlpacaConfig,
     brokers: String,
     group_id: String,
     input_topics: Vec<String>,
     output_topic: String,
 ) -> Result<()> {
-    let config = AlpacaConfig::new(
-        "https://paper-api.alpaca.markets/v2/".to_string(),
-        env::var("APCA_API_KEY_ID")?,
-        env::var("APCA_API_SECRET_KEY")?,
-    )?;
-    let clock = get_clock(&config).await?;
+    let clock = get_clock(&client).await?;
+    info!("{:?}", &clock);
     if !clock.is_open {
         let duration = clock.next_open - clock.timestamp;
         info!("Market closed. Sleeping until {:?}", clock.next_open);
@@ -142,6 +139,12 @@ fn main() -> Result<()> {
         .version(option_env!("CARGO_PKG_VERSION").unwrap_or(""))
         .about("Asynchronous computation example")
         .arg(
+            Arg::with_name("url")
+                .long("url")
+                .takes_value(true)
+                .default_value("https://paper-api.alpaca.markets/v2/"),
+        )
+        .arg(
             Arg::with_name("brokers")
                 .short("b")
                 .long("brokers")
@@ -173,6 +176,9 @@ fn main() -> Result<()> {
         )
         .get_matches();
 
+    let url = matches
+        .value_of("url")
+        .expect("Has default value so unwrap is always safe");
     let brokers = matches
         .value_of("brokers")
         .expect("Has default value so unwrap is always safe");
@@ -188,9 +194,16 @@ fn main() -> Result<()> {
         .value_of("output-topic")
         .expect("Required value so unwrap is always safe");
 
+    let client = AlpacaConfig::new(
+        url.to_string(),
+        env::var("APCA_API_KEY_ID")?,
+        env::var("APCA_API_SECRET_KEY")?,
+    )?;
+
     let mut rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
         run_async_processor(
+            client,
             brokers.to_owned(),
             group_id.to_owned(),
             input_topics.to_owned(),
