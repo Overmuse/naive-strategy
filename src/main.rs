@@ -1,5 +1,5 @@
-use alpaca::{orders::OrderIntent, Side};
-use chrono::{Local, NaiveTime};
+use alpaca::{clock::get_clock, orders::OrderIntent, AlpacaConfig, Side};
+use anyhow::Result;
 use clap::{App, Arg};
 use futures::{future, StreamExt};
 use log::info;
@@ -12,6 +12,7 @@ use rdkafka::Message;
 use serde_json;
 use std::collections::HashMap;
 use std::convert::TryInto;
+use std::env;
 
 fn evaluate_quote<'a>(msg: OwnedMessage) -> Option<OrderIntent> {
     match msg.payload_view::<str>() {
@@ -46,12 +47,16 @@ async fn run_async_processor(
     group_id: String,
     input_topics: Vec<String>,
     output_topic: String,
-) {
-    let local_time = Local::now();
-    let market_open = NaiveTime::from_hms(09, 30, 0);
-    if local_time.time() < market_open {
-        let duration = market_open - local_time.time();
-        info!("Market closed. Sleeping for {:?} seconds", duration);
+) -> Result<()> {
+    let config = AlpacaConfig::new(
+        "https://paper-api.alpaca.markets/v2/".to_string(),
+        env::var("APCA_API_KEY_ID")?,
+        env::var("APCA_API_SECRET_KEY")?,
+    )?;
+    let clock = get_clock(&config).await?;
+    if !clock.is_open {
+        let duration = clock.next_open - clock.timestamp;
+        info!("Market closed. Sleeping until {:?}", clock.next_open);
         tokio::time::delay_for(std::time::Duration::from_secs(
             duration.num_seconds().try_into().unwrap(),
         ))
@@ -126,11 +131,12 @@ async fn run_async_processor(
                 }
             });
             future::ready(())
-        }).await
+        })
+        .await;
+    Ok(())
 }
 
-#[tokio::main]
-async fn main() {
+fn main() -> Result<()> {
     env_logger::builder().format_timestamp_micros().init();
     let matches = App::new("Async example")
         .version(option_env!("CARGO_PKG_VERSION").unwrap_or(""))
@@ -182,11 +188,15 @@ async fn main() {
         .value_of("output-topic")
         .expect("Required value so unwrap is always safe");
 
-    run_async_processor(
-        brokers.to_owned(),
-        group_id.to_owned(),
-        input_topics.to_owned(),
-        output_topic.to_owned(),
-    )
-    .await
+    let mut rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        run_async_processor(
+            brokers.to_owned(),
+            group_id.to_owned(),
+            input_topics.to_owned(),
+            output_topic.to_owned(),
+        )
+        .await?;
+        Ok::<(), anyhow::Error>(())
+    })
 }
