@@ -26,17 +26,16 @@ dependencies = [
 
 [[package]]
 name = "alpaca"
-version = "0.1.0"
-source = "git+https://github.com/AiaiaCapital/alpaca#b820376b71dd792a386fcee93533b99fd2f3fb23"
+version = "0.2.0"
+source = "git+https://github.com/AiaiaCapital/alpaca#8e885fa6f6f1adc0f88b417aa551bdb04988f41f"
 dependencies = [
- "anyhow",
  "chrono",
- "env_logger",
+ "futures 0.3.5",
  "log 0.4.11",
  "reqwest",
  "serde",
  "serde_json",
- "tokio",
+ "thiserror",
  "uuid",
 ]
 

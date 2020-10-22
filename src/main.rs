@@ -1,18 +1,22 @@
-use alpaca::{clock::get_clock, orders::OrderIntent, AlpacaConfig, Side};
+use alpaca::{
+    clock::GetClock,
+    orders::{OrderIntent, Side},
+    Client,
+};
 use anyhow::Result;
 use clap::{App, Arg};
 use futures::{future, StreamExt};
 use log::info;
 use polygon_data_relay::PolygonMessage;
-use rdkafka::config::ClientConfig;
-use rdkafka::consumer::{stream_consumer::StreamConsumer, Consumer};
-use rdkafka::message::OwnedMessage;
-use rdkafka::producer::{FutureProducer, FutureRecord};
-use rdkafka::Message;
+use rdkafka::{
+    config::ClientConfig,
+    consumer::{stream_consumer::StreamConsumer, Consumer},
+    message::OwnedMessage,
+    producer::{FutureProducer, FutureRecord},
+    Message,
+};
 use serde_json;
-use std::collections::HashMap;
-use std::convert::TryInto;
-use std::env;
+use std::{collections::HashMap, convert::TryInto, env};
 
 fn evaluate_quote<'a>(msg: OwnedMessage) -> Option<OrderIntent> {
     match msg.payload_view::<str>() {
@@ -43,13 +47,13 @@ fn update_positions(positions: &HashMap<String, i32>, msg: OwnedMessage) {
 }
 
 async fn run_async_processor(
-    client: AlpacaConfig,
+    client: Client,
     brokers: String,
     group_id: String,
     input_topics: Vec<String>,
     output_topic: String,
 ) -> Result<()> {
-    let clock = get_clock(&client).await?;
+    let clock = client.send(GetClock {}).await?;
     info!("{:?}", &clock);
     if !clock.is_open {
         let duration = clock.next_open - clock.timestamp;
@@ -109,7 +113,6 @@ async fn run_async_processor(
                                 oi2.side = match oi.side {
                                     Side::Buy => Side::Sell,
                                     Side::Sell => Side::Buy,
-                                    _ => Side::Buy,
                                 };
                                 producer.send(
                                     FutureRecord::to(&output_topic).key(&oi2.symbol).payload(
@@ -194,7 +197,7 @@ fn main() -> Result<()> {
         .value_of("output-topic")
         .expect("Required value so unwrap is always safe");
 
-    let client = AlpacaConfig::new(
+    let client = Client::new(
         url.to_string(),
         env::var("APCA_API_KEY_ID")?,
         env::var("APCA_API_SECRET_KEY")?,
