@@ -94,13 +94,15 @@ async fn run_async_processor() -> Result<()> {
                             Side::Buy => Side::Sell,
                             Side::Sell => Side::Buy,
                         };
-                        producer.send(
-                            FutureRecord::to(&output_topic).key(&oi2.symbol).payload(
-                                &serde_json::to_string(&oi2)
-                                    .expect("failed to serialize order intent"),
-                            ),
-                            0,
-                        )
+                        producer
+                            .send(
+                                FutureRecord::to(&output_topic).key(&oi2.symbol).payload(
+                                    &serde_json::to_string(&oi2)
+                                        .expect("failed to serialize order intent"),
+                                ),
+                                0,
+                            )
+                            .await
                     });
                 }
             });
