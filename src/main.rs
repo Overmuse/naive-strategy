@@ -11,7 +11,6 @@ use rdkafka::{
     producer::{FutureProducer, FutureRecord},
     Message,
 };
-use serde_json;
 use std::env;
 
 fn evaluate_quote(msg: OwnedMessage) -> Option<OrderIntent> {
